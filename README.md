@@ -1,112 +1,134 @@
-<div align="center">
+# 项目 006：QQ 空间历史恢复与本地归档
 
-# QQ 空间历史恢复工具（**Qzone-History**）
+[English](README.en.md) · [上游版本说明](UPSTREAM.md) · [原始项目说明](README.upstream.md) · [快速使用](quickStart.md)
 
+这是一个面向个人 QQ 空间数据备份的本地恢复工具。程序通过 QQ 官方扫码登录流程获取当前用户授权的 Cookie，从“当前可见说说”“与我相关”活动记录和留言板三个来源采集数据，再将仍留在活动流中的点赞、评论、浏览、转发和留言痕迹聚合为可浏览的历史记录。
 
+本仓库是百个项目计划中的 Project 006，基于 [ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history) 的提交 `666f8dd4e7fb3ad88248f7818e2f95c16f48adb6` 整理。原项目采用 Apache License 2.0；本仓库完整保留许可证、上游作者信息和原始说明。
 
-[![Version](https://img.shields.io/badge/version-v0.0.4-brightgreen)](version/version.go)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev/)
-[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=flat&logo=windows&logoColor=white)](#从源码编译)
-[![GitHub](https://img.shields.io/badge/GitHub-ZHChen2000/qzone--history-181717?style=flat&logo=github)](https://github.com/ZHChen2000/qzone-history)
+## 核心能力
 
-<br>
+- QQ 扫码登录，Cookie 和会话数据库仅保存在本机。
+- 导入当前仍可见的说说和留言板记录。
+- 深度扫描“与我相关”活动流，支持较大 Offset 和目标年份。
+- 从点赞、评论、浏览、转发等事件碎片重建已删除说说。
+- 将留言板 API 数据与活动流中的留言痕迹合并去重。
+- 输出完整 JSON、原始活动 JSON 和离线 HTML 时间线。
+- 通过本机 Web 控制台查看日志、活动数量、最早日期和恢复进度。
 
-从QQ空间「与我相关」活动记录、说说接口、留言板接口中，尽可能恢复**已删除的说说与留言**，<br>
-并导出为本地JSON与HTML浏览页。
+## 工作原理
 
-<sub>仅供个人备份QQ空间数据 · 请遵守<strong>腾讯相关服务条款</strong></sub>
+```mermaid
+flowchart LR
+    A["QQ 扫码登录"] --> B["当前可见说说"]
+    A --> C["与我相关活动流"]
+    A --> D["留言板接口"]
+    B --> E["本地 SQLite"]
+    C --> E
+    D --> E
+    E --> F["事件去重与字段合并"]
+    F --> G["重建已删除说说与留言"]
+    G --> H["JSON 与离线 HTML"]
+```
 
-</div>
+活动流不是说说数据库的完整副本，而是一组事件证据。某条说说即使已经删除，它曾经产生的点赞、评论、浏览或转发事件仍可能保留正文片段、发送者、接收者和时间。程序采用多条路径交叉恢复：
 
----
+1. 从最新活动开始连续分页，建立近期数据基线。
+2. 使用稀疏 Offset 快速定位较早活动区段。
+3. 对经验上容易出现断层的区间进行更小步长的重叠细扫。
+4. 按半年时间窗查询，补充 Offset 跳变导致的遗漏。
+5. 尝试不同 `set`、`scope` 参数和旧版 `feeds3` 时间游标。
+6. 将所有入口得到的活动统一去重，再聚合正文、时间、图片、点赞、浏览和评论。
 
-## 界面预览
-
-双击 `qzone-history-gui.exe` 后，浏览器自动打开 Web 控制台，扫码登录即可开始恢复：
-
-<p align="center">
-  <img src="docs/images/gui-overview.png" alt="控制台总览" width="720">
-</p>
-
-实时日志与抓取进度：
-
-<p align="center">
-  <img src="docs/images/gui-logs.png" alt="运行日志与进度" width="720">
-</p>
-
-恢复完成后，在本地 HTML 浏览页按时间线查看说说、留言与活动记录：
-
-<p align="center">
-  <img src="docs/images/viewer-result.png" alt="恢复结果浏览页" width="720">
-</p>
-
----
-
-## 功能特性
-
-- QQ 扫码登录（官方登录流程，Cookie 仅存本机）
-- Web 控制台：实时日志、进度、可停止 / 可退出进程
-- 按目标年份推荐 Max Offset，支持手动调大深扫
-- 恢复未删除说说、从活动记录重建已删说说
-- 留言板 API 拉取，失败时从活动记录重建
-- 导出 `{QQ}_export.json`、`{QQ}_activities.json`、`{QQ}_view.html`
-
-## 快速上手
-
-**不想编译？** 直接双击目录中的 `qzone-history-gui.exe`，按**quickStart.md**操作即可。
-
-详细步骤、Offset 对照表、耗时预估、常见问题见[quickStart.md](./quickStart.md)
+Offset 与年份不是线性关系。删除记录、权限变化和 feed 断层都会改变位置分布，因此推荐值只作为起点，最终应以控制台显示的“最早日期”为准。
 
 ## 目录结构
 
-```
-qzone-history/
-├── qzone-history-gui.exe   # Windows预编译
-├── docs/images/            # 文档配图
-├── cmd/                    # 入口与调试工具
-├── internal/               # 业务逻辑、GUI、API客户端
-├── pkg/                    # 导出、路径、日志等公共包
-├── config/                 # 默认配置
-├── version/                # 版本与作者信息
-├── go.mod
-├── README.md
-└── quickStart.md
+```text
+cmd/                                  程序入口与诊断工具
+internal/delivery/                    恢复流水线、依赖装配和本机 Web 控制台
+internal/infrastructure/qzone_api/    QQ 空间请求、活动深扫和响应解析
+internal/usecase/                     活动保存、说说及留言重建
+internal/domain/                      领域实体、仓储和用例接口
+pkg/database/                         SQLite 数据库与迁移
+pkg/export/                           JSON、HTML 导出
+pkg/offset/                           Offset 推荐和耗时估算
+pkg/qrcode/                           QQ 登录二维码
+config/                               默认本地配置
+scripts/                              Windows 构建脚本
 ```
 
-## 从源码编译
+## 从源码构建
 
-需要 [Go 1.21+](https://go.dev/dl/)。
+仓库的 `go.mod` 指定 Go `1.25.2`。进入项目目录后执行：
 
 ```powershell
-# 分发，与仓库根目录预编译包相同
+go mod verify
+go test ./...
+go vet ./...
 go build -ldflags="-H windowsgui -s -w -X qzone-history/version.Version=v0.0.4" -o qzone-history-gui.exe ./cmd/main.go
-
-# 控制台
-go build -o qzone-history.exe ./cmd/main.go
 ```
 
-发布维护者可用 `scripts/build-release.ps1` 一键编译根目录 `qzone-history-gui.exe`（版本号自动读取 `version/version.go`），**每次功能更新请同步提交源码与预编译 exe。**
+本仓库不提交预编译 EXE。这样可以保证最终可执行文件来自当前可审计源码，而不是来自历史二进制文件。
 
-## 技术说明
+## 使用方法
 
-本工具**不是**腾讯开放平台正式 API，而是模拟浏览器访问 QQ 空间网页版使用的内部接口（与你在浏览器中打开空间类似），请求带登录 Cookie 与浏览器请求头，并在抓取时做间隔限速。
+1. 运行自行编译的 `qzone-history-gui.exe`。
+2. 浏览器打开 `http://127.0.0.1:17890`。
+3. 点击“获取/刷新二维码”，用手机 QQ 扫码并确认。
+4. 选择目标年份和 Max Offset，开始恢复。
+5. 根据控制台的活动数量和最早日期判断是否需要继续调大 Offset。
 
-- 数据**仅保存在本机** exe 同目录，不上传任何第三方服务器
-- 深扫（大 Offset）会产生较多请求，请合理设置参数，自行承担使用风险
+常用经验起点：
 
-## 开源协议
+| 目标年份 | 建议 Max Offset |
+| --- | ---: |
+| 2020 | 8,000 |
+| 2018 | 18,000 |
+| 2015 | 50,000 |
+| 2014 及更早 | 80,000 起 |
 
-本项目采用 [Apache License 2.0](LICENSE)。
+更完整的年份对照、耗时估计和界面操作见 [quickStart.md](quickStart.md)。
 
-## 免责声明
+## 本地输出
 
-本工具仅供学习与个人数据备份。请勿用于未授权访问他人空间、商用爬取或其他违法行为。使用本工具所产生的一切后果由使用者自行承担。
+程序运行后会在可执行文件目录生成：
 
----
+```text
+session.db                 QQ 登录会话
+{QQ号}/app.db              本地恢复数据库
+{QQ号}/{QQ号}_export.json
+{QQ号}/{QQ号}_activities.json
+{QQ号}/{QQ号}_view.html
+```
 
-<div align="center">
+这些文件包含个人账号、Cookie 或空间内容，均已通过 `.gitignore` 排除，不会进入源码仓库。
 
-**作者：[ZHChen](https://github.com/ZHChen2000)** &nbsp;·&nbsp; **联系：QQ 1415094395**
+## 本版本整理内容
 
-</div>
+- 从上游提交 `666f8dd4…` 建立干净源码基线。
+- 排除上游预编译 EXE、本机会话数据库和个人 QQ 数据目录。
+- 在扫描策略、活动去重、时间推断、数据重建、Offset 推荐和 GUI 生命周期处增加中文原理注释。
+- 增加中英文项目说明和明确的安全边界。
+- 保留 Apache License 2.0、上游作者信息、原始 README 和 quickStart。
+
+## 验证记录
+
+- `go mod verify`：通过。
+- `go test ./...`：通过。
+- `go vet ./...`：通过。
+- 高置信度密钥扫描：未发现私钥、云访问密钥或 GitHub Token。
+- 发布仓库不包含 EXE、`session.db`、用户数据库或 QQ 导出文件。
+
+## 使用边界
+
+本工具只用于备份本人或已获得明确授权的 QQ 空间数据。请求会访问 QQ 空间网页内部接口，深度扫描会产生较多请求，应合理设置 Offset 并遵守腾讯相关服务条款。
+
+## 上游与许可证
+
+- 上游项目：[ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history)
+- 上游作者：ZHChen
+- 上游基线：`666f8dd4e7fb3ad88248f7818e2f95c16f48adb6`
+- 许可证：[Apache License 2.0](LICENSE)
+
+本仓库的注释和文档整理不改变上游项目的作者归属。
