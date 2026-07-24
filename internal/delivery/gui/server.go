@@ -32,11 +32,11 @@ var dashboardHTML []byte
 const DefaultPort = 17890
 
 type Server struct {
-	cfg    *config.Config
-	hub    *loghub.Hub
-	mu     sync.Mutex
-	runCtx context.Context
-	cancel context.CancelFunc
+	cfg     *config.Config
+	hub     *loghub.Hub
+	mu      sync.Mutex
+	runCtx  context.Context
+	cancel  context.CancelFunc
 	running bool
 
 	sessionStack *bootstrap.Stack
@@ -80,6 +80,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("/api/exit", s.handleExit)
 	mux.HandleFunc("/api/open-viewer", s.handleOpenViewer)
 
+	// 控制台只绑定回环地址：二维码、Cookie、QQ 号和恢复进度都不应暴露给局域网。
+	// 浏览器只是本机 UI，真正的抓取任务在独立 goroutine 中运行，关闭标签页不会中断。
 	addr := fmt.Sprintf("127.0.0.1:%d", DefaultPort)
 	applog.Redirect(s.hub)
 	s.hub.Logf("QQ空间历史恢复工具 %s | 作者: %s | QQ: %s", version.Version, version.Author, version.ContactQQ)
@@ -142,6 +144,8 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(st))
 	flusher.Flush()
 
+	// SSE 同时推送即时日志和周期状态。日志事件保证反馈及时，2 秒心跳则让页面在
+	// 没有新日志的深扫阶段仍能刷新活动数、最早日期和停止状态。
 	ch := s.hub.Subscribe()
 	defer s.hub.Unsubscribe(ch)
 
@@ -321,6 +325,8 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		st.Phase = "启动中"
 	})
 
+	// 任务上下文不继承单次 HTTP 请求：按钮返回后任务仍需继续运行；停止按钮通过
+	// 保存的 cancel 显式中断扫描、数据库写入和导出阶段。
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.runCtx = ctx

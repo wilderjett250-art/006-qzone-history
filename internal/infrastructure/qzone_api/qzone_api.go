@@ -401,6 +401,9 @@ func (c *qzoneAPIClient) GetAllActivities(cookies map[string]string, opts FetchO
 }
 
 func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies map[string]string, opts FetchOptions, rep ProgressReporter) ([]*entity.Activity, error) {
+	// 先访问空间页面让 Cookie 会话进入可用状态，再计算后续接口需要的 g_tk。
+	// QQ 空间历史接口并不是稳定的公开 API，同一账号在不同域名或参数组合下可能返回
+	// 不同片段，所以后面会用多条扫描路径交叉覆盖，而不是依赖单一分页结果。
 	cookies = c.warmUpSession(cookies)
 	uin := utils.ExtractUin(cookies)
 	seen := make(map[string]struct{})
@@ -414,6 +417,9 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		rep.OnActivities(len(allActivities), earliestUnix, phase)
 	}
 
+	// 顺序分页、稀疏 Offset、时间窗和 feeds3 游标会命中大量重叠活动。
+	// 所有入口都汇入同一个去重集合，既允许多策略补漏，也避免重复事件放大点赞、
+	// 浏览和评论计数。
 	appendUnique := func(batch []*entity.Activity) int {
 		added := 0
 		for _, a := range batch {
@@ -434,6 +440,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		}
 	}
 
+	// 老活动中的“昨天”“3月2日”等文本可能没有完整年份。先从原始响应和已解析
+	// 批次维护当前最早时间，再把它作为参照年解析相对时间，可减少跨年时的误判。
 	trackBatch := func(batch []*entity.Activity, raw string) {
 		trackEarliest(raw)
 		refYear := timeparse.RefYearFromEarliest(earliestUnix, opts.TargetYear)
@@ -490,6 +498,7 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		return nil
 	}
 
+	// 第一层先连续读取最新页，获得稳定基线和初始时间参照。
 	scanLog.phaseStart("顺序分页", "从最新动态开始拉取")
 	report("顺序分页")
 	if err := fetchAtOffset(0, 100, "顺序分页"); err != nil {
@@ -501,6 +510,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		return allActivities, err
 	}
 
+	// QQ 空间活动流存在删帖、权限变化和历史断层，Offset 与年份并非线性关系。
+	// 稀疏扫描负责快速找到仍可访问的远端区段，后面的热点细扫再填补容易漏掉的范围。
 	scanLog.phaseStart("稀疏深扫", fmt.Sprintf("offset 700~%d，步长 100（较耗时，请耐心等待）", clampMax(6000, maxOff)))
 	report("稀疏深扫")
 	for off := 700; off <= clampMax(6000, maxOff); off += 100 {
@@ -516,6 +527,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		}
 	}
 
+	// 2500~3200 和 4500~5500 是经验上更容易出现历史断层的区间，使用更小步长
+	// 重叠读取，以请求时间换取恢复完整度。
 	if maxOff >= 2500 {
 		scanLog.phaseStart("细扫 2500-3200", "加密 offset 扫描")
 		for off := 2500; off <= clampMax(3200, maxOff); off += 25 {
@@ -545,6 +558,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		}
 	}
 
+	// 超过 6000 后进入用户指定的深扫范围。这里仍然分层使用不同步长，
+	// 防止大 Offset 下请求量无界增长，同时保留手动扩大范围的能力。
 	if maxOff > 6000 {
 		scanLog.phaseStart("极限深扫", fmt.Sprintf("offset 6000~%d", maxOff))
 		report("极限深扫")
@@ -591,6 +606,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		}
 	}
 
+	// Offset 深扫解决“列表位置”问题，时间窗扫描从另一个维度按半年切片。
+	// 两者交叉可覆盖 Offset 跳变但时间字段仍然可查询的旧活动。
 	scanLog.phaseStart("历史时间窗", fmt.Sprintf("按年/半年切片扫描 %d 年及更早", scanTargetYear(opts.TargetYear)))
 	report("历史时间窗")
 	for i, win := range buildYearlyWindows(opts.TargetYear) {
@@ -607,6 +624,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 		}
 	}
 
+	// 同一接口的 set/scope 参数会改变活动可见范围。这里尝试多个组合后统一去重，
+	// 用来补回仅在某一种空间视图中出现的事件。
 	scanLog.phaseStart("set/scope 变体", "尝试不同 API 参数组合")
 	report("set/scope 变体")
 	barAdd := func(batch []*entity.Activity) int {
@@ -629,6 +648,8 @@ func (c *qzoneAPIClient) getAllActivitiesWithOpts(ctx context.Context, cookies m
 	}
 	c.fetchActivitiesWithScope(ctx, cookies, uin, 1, pageSize, maxOff, barAdd, report)
 
+	// 最后一层使用旧版 feeds3 的时间游标回溯。它与 Offset 分页机制独立，
+	// 对极早年份或主活动流断层尤其有价值。
 	scanLog.phaseStart("feeds3 游标", "按时间游标深度回溯历史")
 	report("feeds3 游标")
 	checkpoints := buildFeeds3Checkpoints(opts.TargetYear)

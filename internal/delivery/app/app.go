@@ -83,6 +83,9 @@ func (a *App) RunPipeline(ctx context.Context, user *entity.User, opts RunOption
 		return err
 	}
 
+	// 恢复流程按“当前可见数据 -> 活动痕迹 -> 重建结果 -> 本地导出”的顺序执行。
+	// 当前说说或留言接口失败时不立即终止，是因为活动流中仍可能保留已删除内容的点赞、
+	// 评论和浏览痕迹；让后续阶段继续运行，通常比把某一个接口当作唯一真相更完整。
 	hub.Log("登录成功，获取未删除说说...")
 	hub.SetStatus(func(s *loghub.Status) { s.Phase = "获取未删除说说" })
 	count, err := a.momentUseCase.ImportVisibleMoments(ctx, *user)
@@ -96,6 +99,8 @@ func (a *App) RunPipeline(ctx context.Context, user *entity.User, opts RunOption
 		return err
 	}
 
+	// 活动记录是重建已删除说说的核心证据源。它不是一份完整的说说快照，而是同一内容
+	// 在不同时间产生的事件碎片，因此这里先尽可能深扫并持久化，下一阶段再统一聚合。
 	hub.Log("获取活动记录（用于恢复已删说说）...")
 	hub.SetStatus(func(s *loghub.Status) { s.Phase = "扫描活动记录" })
 	_, err = a.activityUseCase.FetchActivities(ctx, *user, opts.MaxOffset, opts.TargetYear)
@@ -124,6 +129,8 @@ func (a *App) RunPipeline(ctx context.Context, user *entity.User, opts RunOption
 		return err
 	}
 
+	// 重建阶段只读取已经落盘的活动记录。这样网络抓取与数据推断相互解耦：
+	// 即使后续导出失败或用户重新运行，已经抓到的历史证据仍可复用。
 	hub.Log("开始数据重建过程...")
 	hub.SetStatus(func(s *loghub.Status) { s.Phase = "重建数据" })
 	err = a.reconstructionUseCase.ReconstructMomentsFromActivities(ctx, user.QQ)
@@ -139,6 +146,8 @@ func (a *App) RunPipeline(ctx context.Context, user *entity.User, opts RunOption
 		return err
 	}
 
+	// 留言板接口返回的记录优先保留，活动记录只负责补缺。两路数据最终通过稳定的
+	// 去重键合并，避免同一条留言既来自官方列表又来自“与我相关”时重复出现。
 	if boardCount == 0 {
 		hub.Log("留言板 API 无数据，将从活动记录补充留言")
 	} else {

@@ -31,6 +31,8 @@ func buildFeeds3Checkpoints(targetYear int) []int64 {
 		seen[ts] = struct{}{}
 		points = append(points, ts)
 	}
+	// 同时使用季度步进和每年年初/年中检查点。季度点保证扫描密度，
+	// 半年边界则让长时间跨度下仍有稳定锚点；seen 用于消除两组规则的重合时间。
 	add(now.Unix())
 	for t := now; !t.Before(start); t = t.AddDate(0, -3, 0) {
 		add(t.Unix())
@@ -47,6 +49,8 @@ func buildYearlyWindows(targetYear int) [][2]int64 {
 	targetYear = scanTargetYear(targetYear)
 	nowYear := time.Now().Year()
 	var windows [][2]int64
+	// 一年拆成两个窗口，避免单个响应因数据量或服务端截断而只返回该年的一部分。
+	// 从当前年份倒序扫描，也让界面能够更早显示近期结果和“当前最早日期”。
 	for year := nowYear; year >= targetYear; year-- {
 		yBegin := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local).Unix()
 		h1End := time.Date(year, 6, 30, 23, 59, 59, 0, time.Local).Unix()
@@ -99,6 +103,8 @@ func (c *qzoneAPIClient) fetchActivitiesInTimeWindow(
 		if !utils.HasMoreFeeds(raw) {
 			break
 		}
+		// 使用实际解析出的条数推进，而不是固定加 pageSize。旧接口偶尔会返回不足一页，
+		// 按真实长度推进可以避免跨过仍未读取的活动。
 		offset += len(batch)
 		if err := sleepCtx(ctx, 80*time.Millisecond); err != nil {
 			return err

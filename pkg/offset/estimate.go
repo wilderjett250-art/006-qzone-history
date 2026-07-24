@@ -39,6 +39,8 @@ func EstimateScan(targetYear, maxOffset int) (minMinutes, maxMinutes int) {
 	lo += 8
 	hi += 15
 
+	// 推荐 Offset 对应一组实测时间区间。用户继续调大 Offset 时按比例放大估时，
+	// 但限制在 2.5 倍以内，避免界面因极端输入给出失真的超长预测。
 	rec := RecommendMaxOffset(targetYear)
 	if rec > 0 && maxOffset > rec {
 		ratio := float64(maxOffset) / float64(rec)

@@ -48,6 +48,8 @@ func (a *activityUseCase) GetActivitiesByType(ctx context.Context, activityType 
 	return a.activityRepo.FindByType(ctx, activityType, limit, offset)
 }
 func (a *activityUseCase) generateActivityID(message *entity.Activity) string {
+	// 活动接口没有始终可靠的唯一 ID，因此用内容、时间和发送者生成稳定指纹。
+	// 同一批次或不同扫描策略再次命中时会得到相同 ID，便于数据库幂等写入。
 	data := fmt.Sprintf("%s%s%s", message.Content, message.Timestamp.String(), message.SenderQQ)
 	hash := md5.Sum([]byte(data))
 	return hex.EncodeToString(hash[:])
@@ -75,6 +77,8 @@ func (a *activityUseCase) FetchActivities(ctx context.Context, user entity.User,
 		return activities, nil
 	}
 
+	// 网络层已经完成跨策略去重，这里再分批落盘，避免深扫数万 Offset 时一次事务
+	// 占用过多内存；每批前检查 ctx，使“停止”按钮能在持久化阶段及时生效。
 	batchSize := 100
 	for i := 0; i < len(activities); i += batchSize {
 		if err := ctx.Err(); err != nil {

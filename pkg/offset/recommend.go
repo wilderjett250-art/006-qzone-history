@@ -1,6 +1,8 @@
 package offset
 
 func RecommendMaxOffset(targetYear int) int {
+	// 这是基于实际活动流密度得到的经验起点，不是“年份差 × 固定数量”的线性公式。
+	// 删除记录和 feed 断层会改变位置分布，所以恢复结果仍应以界面显示的最早日期为准。
 	switch {
 	case targetYear >= 2024:
 		return 1500
