@@ -6,6 +6,21 @@ This is a local recovery tool for personal Qzone backups. It uses QQ's QR-code l
 
 This Project 006 repository is based on commit `666f8dd4e7fb3ad88248f7818e2f95c16f48adb6` of [ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history). The upstream project is licensed under Apache License 2.0. The license, original author attribution, upstream README, and quick-start guide are preserved.
 
+## For non-technical users: download and run
+
+You do not need Go, Python, or Node.js. Download the Windows ZIP from the Release page, extract it, and double-click the EXE.
+
+1. Download the [Windows ZIP (recommended)](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.zip), or download the [Windows EXE](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.exe) directly.
+2. If you downloaded the ZIP, choose “Extract all” and open the extracted folder.
+3. Double-click `qzone-history-gui.exe`. Your browser will open the local tool page.
+4. Click “Refresh QR code”, scan it with QQ on your phone, and confirm the login.
+5. Choose a target year and scan range, then start recovery.
+6. When the run finishes, use the result link in the page or open the generated `_view.html` file next to the EXE.
+
+On the first run, Windows may show an “Unknown publisher” warning. Confirm that the file came from this repository's Release, then choose “More info → Run anyway”.
+
+Use this tool only for your own QQ Space data or data for which you have clear permission. Files such as `session.db`, `app.db`, `*_export.json`, `*_activities.json`, and `*_view.html` may contain private account or space data. Do not upload or share them.
+
 ## What it does
 
 - Logs in through QQ's QR-code flow and keeps cookies on the local machine.

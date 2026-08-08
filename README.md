@@ -6,6 +6,21 @@
 
 本仓库是百个项目计划中的 Project 006，基于 [ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history) 的提交 `666f8dd4e7fb3ad88248f7818e2f95c16f48adb6` 整理。原项目采用 Apache License 2.0；本仓库完整保留许可证、上游作者信息和原始说明。
 
+## 普通用户：下载后直接使用
+
+不需要安装 Go、Python 或 Node.js。推荐下载 Release 中的 Windows ZIP，解压后直接双击 EXE。
+
+1. 下载 [Windows ZIP（推荐）](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.zip)；也可以单独下载 [Windows EXE](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.exe)。
+2. 如果下载的是 ZIP，右键选择“解压全部”，打开解压后的文件夹。
+3. 双击 `qzone-history-gui.exe`，浏览器会自动打开工具页面。
+4. 点击“获取/刷新二维码”，用手机 QQ 扫码并确认登录。
+5. 选择想查看的年份和扫描范围，点击开始恢复。
+6. 完成后点击页面里的结果入口，或在 EXE 所在文件夹中打开生成的 `_view.html` 文件。
+
+Windows 第一次运行可能显示“未知发布者”提示。请确认文件来自本仓库的 Release，再选择“更多信息 → 仍要运行”。
+
+本工具只用于本人或已获得明确授权的 QQ 空间。`session.db`、`app.db`、`*_export.json`、`*_activities.json` 和 `*_view.html` 都可能包含个人账号或空间内容，请不要上传或转发。
+
 ## 核心能力
 
 - QQ 扫码登录，Cookie 和会话数据库仅保存在本机。

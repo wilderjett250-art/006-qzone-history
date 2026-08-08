@@ -22,6 +22,8 @@ debug_*.txt
 *.exe
 dist/
 build/
+release/
+release-v*/
 
 # IDE / 系统
 .idea/
