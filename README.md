@@ -84,7 +84,7 @@ go vet ./...
 go build -ldflags="-H windowsgui -s -w -X qzone-history/version.Version=v0.0.4" -o qzone-history-gui.exe ./cmd/main.go
 ```
 
-本仓库不提交预编译 EXE。这样可以保证最终可执行文件来自当前可审计源码，而不是来自历史二进制文件。
+源码仓库不把 EXE 混在源码提交中；可直接使用的 Windows EXE 和 ZIP 已放在 Release，普通用户无需自行安装开发环境或编译源码。
 
 ## 使用方法
 

@@ -57,7 +57,7 @@ go vet ./...
 go build -ldflags="-H windowsgui -s -w -X qzone-history/version.Version=v0.0.4" -o qzone-history-gui.exe ./cmd/main.go
 ```
 
-No prebuilt executable is committed. The Windows binary is expected to be built from the auditable source currently checked out.
+The source repository keeps the executable out of normal source commits. A ready-to-run Windows EXE and ZIP are attached to the Release, so non-technical users do not need to install a development environment or build the source.
 
 ## Run
 
