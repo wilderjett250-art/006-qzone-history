@@ -1,101 +1,43 @@
-# Project 006: Qzone History Recovery and Local Archive
+# 006 Qzone History Recovery Tool
 
-[中文](README.md) · [Upstream provenance](UPSTREAM.md) · [Original README](README.upstream.md) · [Quick start](quickStart.md)
+> With user authorization, organizes traceable Qzone activity history and exports it to local files.
 
-This is a local recovery tool for personal Qzone backups. It uses QQ's QR-code login flow, collects currently visible moments, the “related to me” activity feed, and board messages, then reconstructs historical records from residual like, comment, view, forward, and message events.
+## Problem
 
-This Project 006 repository is based on commit `666f8dd4e7fb3ad88248f7818e2f95c16f48adb6` of [ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history). The upstream project is licensed under Apache License 2.0. The license, original author attribution, upstream README, and quick-start guide are preserved.
+The current page may show only part of the history, while deleted posts are difficult to trace and archive offline.
 
-## For non-technical users: download and run
+## Demo
 
-You do not need Go, Python, or Node.js. Download the Windows ZIP from the Release page, extract it, and double-click the EXE.
+![Tool interface](docs/images/gui-overview.png)
 
-1. Download the [Windows ZIP (recommended)](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.zip), or download the [Windows EXE](https://github.com/wilderjett250-art/006-qzone-history-recovery/releases/download/v0.0.4/qzone-history-gui-windows-x64-v0.0.4.exe) directly.
-2. If you downloaded the ZIP, choose “Extract all” and open the extracted folder.
-3. Double-click `qzone-history-gui.exe`. Your browser will open the local tool page.
-4. Click “Refresh QR code”, scan it with QQ on your phone, and confirm the login.
-5. Choose a target year and scan range, then start recovery.
-6. When the run finishes, use the result link in the page or open the generated `_view.html` file next to the EXE.
+Launch the desktop app, scan the QR code, choose a year and range, then export JSON or offline HTML.
 
-On the first run, Windows may show an “Unknown publisher” warning. Confirm that the file came from this repository's Release, then choose “More info → Run anyway”.
+Login, scanning, deduplication, reconstruction, and export are joined into one Windows workflow.
 
-Use this tool only for your own QQ Space data or data for which you have clear permission. Files such as `session.db`, `app.db`, `*_export.json`, `*_activities.json`, and `*_view.html` may contain private account or space data. Do not upload or share them.
+## Highlights
 
-## What it does
+- A Windows EXE that ordinary users can launch by double-clicking.
+- Deep activity scanning with time-range targeting.
+- Aggregates and deduplicates likes, comments, views, and repost events.
+- Exports both JSON and offline HTML.
 
-- Logs in through QQ's QR-code flow and keeps cookies on the local machine.
-- Imports moments and board messages that remain directly visible.
-- Deep-scans the “related to me” activity feed using target years and large offsets.
-- Reconstructs deleted moments from residual likes, comments, views, and forwards.
-- Merges board API results with message traces found in the activity feed.
-- Exports complete JSON, raw activity JSON, and an offline HTML timeline.
-- Provides a loopback-only Web console for logs, progress, activity count, and earliest date.
+## Tech
 
-## Recovery model
+`Go · SQLite · Local Web UI · HTML · QQ Space interfaces`
 
-The activity feed is not a complete snapshot of the original moments. It is a collection of event evidence. Even after a moment is deleted, related events may still retain text fragments, participants, timestamps, or images.
+## Reproduce from ZIP
 
-The scanner therefore combines several overlapping strategies:
+1. Download and fully extract the ZIP from Releases.
+2. Double-click `qzone-history-gui.exe`.
+3. Click “Get/Refresh QR code” and confirm with your own QQ account.
+4. Choose a year and scan range, then open the JSON/HTML files in the output directory.
 
-1. Sequential pagination establishes a recent-data baseline.
-2. Sparse offset scanning locates older reachable regions.
-3. Fine-grained overlap scans fill historically discontinuous ranges.
-4. Half-year time windows recover records missed by offset jumps.
-5. `set`, `scope`, and legacy `feeds3` variants provide independent coverage.
-6. All results flow through shared deduplication before reconstruction.
+**Expected result:** After these steps, you should see the project's page, window, device output, or test result.
 
-Offset and year are not linearly related. Deletions, permission changes, and feed gaps shift record positions, so the displayed earliest date is the authoritative completion signal.
+## Scope and Safety
 
-## Build from source
+This is a localized delivery based on an open-source project, not a claim of original authorship; process only Qzone data you are authorized to access and save.
 
-The repository's `go.mod` specifies Go `1.25.2`.
+## Contact
 
-```powershell
-go mod verify
-go test ./...
-go vet ./...
-go build -ldflags="-H windowsgui -s -w -X qzone-history/version.Version=v0.0.4" -o qzone-history-gui.exe ./cmd/main.go
-```
-
-The source repository keeps the executable out of normal source commits. A ready-to-run Windows EXE and ZIP are attached to the Release, so non-technical users do not need to install a development environment or build the source.
-
-## Run
-
-1. Start the locally built `qzone-history-gui.exe`.
-2. Open `http://127.0.0.1:17890`.
-3. Request a QR code and confirm login with the QQ mobile app.
-4. Choose a target year and maximum offset.
-5. Watch the activity count and earliest date; increase the offset if the scan has not reached the requested year.
-
-See [quickStart.md](quickStart.md) for the full offset table, time estimates, controls, and output layout.
-
-## Local data boundary
-
-The program creates `session.db`, a per-account SQLite database, JSON exports, and an offline HTML viewer next to the executable. These files may contain cookies, account identifiers, and personal Qzone content. They are excluded by `.gitignore` and are not part of this source repository.
-
-The Web console binds only to `127.0.0.1:17890`. The tool is intended only for backing up the user's own data or data for which explicit authorization has been granted.
-
-## Project 006 changes
-
-- Imported a clean source baseline from upstream commit `666f8dd4…`.
-- Excluded the upstream prebuilt executable and all local runtime/account data.
-- Added explanatory Chinese comments around scan coverage, deduplication, time inference, reconstruction, offsets, and GUI lifecycle.
-- Added bilingual documentation and explicit security boundaries.
-- Preserved the Apache-2.0 license, upstream attribution, original README, and quick-start guide.
-
-## Validation
-
-- `go mod verify`: passed.
-- `go test ./...`: passed.
-- `go vet ./...`: passed.
-- High-confidence secret scan: no private keys, cloud access keys, or GitHub tokens found.
-- Repository audit: no executable, session database, account database, or Qzone export is tracked.
-
-## Upstream and license
-
-- Upstream: [ZHChen2000/qzone-history](https://github.com/ZHChen2000/qzone-history)
-- Original author: ZHChen
-- Source baseline: `666f8dd4e7fb3ad88248f7818e2f95c16f48adb6`
-- License: [Apache License 2.0](LICENSE)
-
-The documentation and explanatory comments in this repository do not alter upstream authorship.
+Open to technical exchange.
